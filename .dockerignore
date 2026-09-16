@@ -1,0 +1,10 @@
+venv/
+.venv/
+.idea/
+.git/
+__pycache__/
+*.pyc
+*.log
+.env
+.env.*
+local_only/

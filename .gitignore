@@ -1,0 +1,9 @@
+venv/
+.venv/
+.idea/
+__pycache__/
+*.py[cod]
+*.log
+.env
+.env.*
+/local_only/
