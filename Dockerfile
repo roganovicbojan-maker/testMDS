@@ -6,7 +6,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 WORKDIR /app
 COPY *.py ./
 COPY tests/ ./tests/
-COPY README.md ./
+COPY README.md BONUS.md ./
 
 # Only the Python standard library is required.
 RUN python -m unittest discover -s tests -t . -v
