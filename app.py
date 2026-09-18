@@ -82,14 +82,37 @@ async def run(
                 # A failed file source must also stop the continuous message source.
                 stop.set()
 
-        producer_results = await asyncio.gather(
+        cancellation_requested = False
+
+        async def finish_step(operation):
+            # Direct app cancellation requests graceful shutdown, just like SIGINT.
+            # Shield keeps producers/drain alive until their owned resources finish.
+            nonlocal cancellation_requested
+            task = asyncio.ensure_future(operation)
+            while True:
+                try:
+                    return await asyncio.shield(task)
+                except asyncio.CancelledError:
+                    if task.cancelled():
+                        raise
+                    cancellation_requested = True
+                    stop.set()
+
+        producer_results = await finish_step(asyncio.gather(
             receive_messages(), schedule_files(), return_exceptions=True,
-        )
+        ))
         producer_errors = [result for result in producer_results if isinstance(result, BaseException)]
         for error in producer_errors:
             logging.error("Producer failed: %s", error)
         # All producers have stopped; inspect all accepted worker results.
-        await dispatcher.drain()
+        try:
+            await finish_step(dispatcher.drain())
+        except Exception:
+            if not cancellation_requested:
+                raise
+            logging.exception("Worker failure during cancelled application shutdown")
+        if cancellation_requested:
+            raise asyncio.CancelledError
         if producer_errors:
             raise RuntimeError("A data source failed")
     logging.info("APP finished successfully")
@@ -132,5 +155,3 @@ if __name__ == "__main__":
         datefmt="%H:%M:%S",
     )
     asyncio.run(run_cli(args))
-
-
