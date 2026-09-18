@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import math
 import time
 from collections.abc import AsyncIterator, Callable
 from contextlib import suppress
@@ -75,9 +76,11 @@ class MessageBatchService:
             # Otherwise preserve the original source/submission error or cancellation.
 
 
-def process_batch(batch: MessageBatch) -> int:
+def process_batch(batch: MessageBatch, delay_seconds: float = 3) -> int:
+    if not math.isfinite(delay_seconds) or delay_seconds < 0:
+        raise ValueError("Message processing delay must be nonnegative and finite")
     ids = [message.message_id for message in batch.messages]
     logging.info("START processing %s", ids)
-    time.sleep(3)
+    time.sleep(delay_seconds)
     logging.info("DONE processing %s", ids)
     return len(batch.messages)
