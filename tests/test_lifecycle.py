@@ -102,7 +102,7 @@ class LifecycleTests(unittest.IsolatedAsyncioTestCase):
                 await asyncio.Event().wait()
             finally:
                 closed.set()
-        def process(batch):
+        def process(batch, delay_seconds=3):
             received.append(batch)
             loop.call_soon_threadsafe(worker_started.set)
             if not release_worker.wait(5):

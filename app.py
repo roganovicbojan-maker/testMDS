@@ -3,8 +3,10 @@
 import argparse
 import asyncio
 import logging
+import math
 import random
 import signal
+from functools import partial
 from contextlib import suppress
 from concurrent.futures import ThreadPoolExecutor
 
@@ -30,16 +32,21 @@ async def run(
     files_now: bool = False, file_interval: float | None = None,
     nightly_hour: int = 2, nightly_minute: int = 0,
     stop: asyncio.Event | None = None,
+    seed: int = 42, message_delay: float = 3,
 ) -> None:
+    if not math.isfinite(message_delay) or message_delay < 0:
+        raise ValueError("Message processing delay must be nonnegative and finite")
     stop = stop if stop is not None else asyncio.Event()
     schedule = FileSchedule(nightly_hour, nightly_minute, file_interval)
     file_service = FileBatchService(
-        ExponentialFileSource(rng=random.Random(42)), NextFitBucketing()
+        ExponentialFileSource(rng=random.Random(seed)), NextFitBucketing()
     )
     file_processor = SimulatedFileProcessor(delay_seconds=1)
     message_source = PoissonMessageSource(
-        rate_per_minute=rate, max_messages=count, rng=random.Random(42)
+        rate_per_minute=rate, max_messages=count, rng=random.Random(seed + 1)
     )
+    # Separate streams, reproducible from one user-selected seed.
+    message_processor = partial(process_batch, delay_seconds=message_delay)
     batcher = TimeBatcher(window)
     logging.info("APP: one pool, 10 workers; rate=%s/min, window=%ss, messages=%s", rate, window, count)
     with ThreadPoolExecutor(max_workers=10, thread_name_prefix="shared-worker") as pool:
@@ -47,7 +54,7 @@ async def run(
 
         def submit_messages(batch):
             dispatcher.submit(
-                f"message batch starting with {batch.messages[0].message_id}", process_batch, batch
+                f"message batch starting with {batch.messages[0].message_id}", message_processor, batch
             )
 
         message_service = MessageBatchService(batcher, submit_messages)
@@ -133,6 +140,7 @@ async def run_cli(args) -> None:
         await run(
             args.rate, args.window, args.count, args.files_now, args.file_interval,
             args.nightly_hour, args.nightly_minute, stop=stop,
+            seed=args.seed, message_delay=args.message_delay,
         )
     finally:
         for signum, handler in previous.items():
@@ -148,6 +156,8 @@ if __name__ == "__main__":
     parser.add_argument("--file-interval", type=float, default=None, help="Demo: repeat file collection every N seconds")
     parser.add_argument("--nightly-hour", type=int, default=2, help="Daily collection hour in UTC (default: 2)")
     parser.add_argument("--nightly-minute", type=int, default=0, help="Daily collection minute (default: 0)")
+    parser.add_argument("--seed", type=int, default=42, help="Reproducible seed: files use seed, messages use seed + 1")
+    parser.add_argument("--message-delay", type=float, default=3, help="Simulated message processing seconds (default: 3; 0 disables delay)")
     args = parser.parse_args()
     logging.basicConfig(
         level=logging.INFO,

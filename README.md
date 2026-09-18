@@ -37,6 +37,8 @@ Useful options:
 | `--rate 10` | Average message arrivals per minute |
 | `--window 300` | Message window in seconds |
 | `--count 60` | Finite run; omit for continuous operation |
+| `--seed 42` | Reproducible sources: file seed 42, message seed 43 |
+| `--message-delay 3` | Simulated message processing seconds; use 0 for no delay |
 | `--files-now` | Also collect files immediately on startup |
 | `--file-interval 10` | Demo only: repeat collection after this many seconds |
 | `--nightly-hour 2 --nightly-minute 0` | Daily UTC collection time |
@@ -108,6 +110,11 @@ interfaces for static checking; tests verify behavior.
   The final partial bucket is also submitted.
 - The exponential file-size mean is configurable in `ExponentialFileSource` and
   defaults to 3 MB, since the task does not specify it. Sizes are truncated to bytes.
+- The application gives the file source `seed` and the message source `seed + 1`,
+  so they do not replay the same random stream. The default seed is 42; changing
+  `--seed` changes both streams while keeping runs reproducible.
+- Message processing delay is configurable with `--message-delay` (default 3 s).
+  It changes simulated worker duration, not the batching window or arrival rate.
 - Both producers share the same pool. File processing and message processing
   simulate I/O with a delay; the task does not specify a business transformation.
 - Nightly scheduling uses UTC, does not replay missed executions, and runs inside
