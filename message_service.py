@@ -26,6 +26,7 @@ class MessageBatchService:
     async def run(self, source: AsyncIterator[Message]) -> None:
         loop = asyncio.get_running_loop()
         pending = None
+        primary_error = None
         try:
             while True:
                 if pending is None:
@@ -46,13 +47,32 @@ class MessageBatchService:
                 else:
                     self._submit(self.batcher.close_if_due(loop.time()))
                     # Keep the same pending read: a deadline must not cancel the source.
+        except BaseException as error:
+            primary_error = error
+            raise
         finally:
+            # run owns this iterator: stop its active read before closing it.
             if pending is not None:
                 pending.cancel()
                 with suppress(asyncio.CancelledError, Exception):
                     await pending
-            # EOF, source error or cancellation: submit already accepted messages.
-            self._submit(self.batcher.flush())
+            cleanup_errors = []
+            close = getattr(source, "aclose", None)
+            if close is not None:
+                try:
+                    await close()
+                except Exception as error:
+                    cleanup_errors.append(error)
+            # Closing failure must not prevent submission of accepted messages.
+            try:
+                self._submit(self.batcher.flush())
+            except Exception as error:
+                cleanup_errors.append(error)
+            for error in cleanup_errors:
+                logging.error("Message cleanup failed: %s", error)
+            if cleanup_errors and primary_error is None:
+                raise cleanup_errors[0]
+            # Otherwise preserve the original source/submission error or cancellation.
 
 
 def process_batch(batch: MessageBatch) -> int:

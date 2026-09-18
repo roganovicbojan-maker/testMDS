@@ -97,6 +97,12 @@ interfaces for static checking; tests verify behavior.
   window. Reception time is the coordinator's monotonic time, not source event time.
 - An idle source does not prevent deadline closure. No empty batches are produced.
   EOF, source error and graceful cancellation flush the accepted partial batch.
+  The message service owns the supplied iterator for the duration of a run: it
+  stops its pending read and awaits `aclose()` when that method is available.
+  Cleanup failures are logged without replacing an existing source/submission error.
+  Direct cancellation of `app.run()` requests the same orderly stop, waits for
+  producers and workers, then propagates cancellation. Repeated cancellation
+  requests do not abandon the drain; this is not a forced-stop mechanism.
 - 1 MB = 1,000,000 bytes. Files remain whole. A file exceeding 10 MB gets its own
   oversized bucket; this is an explicit exception to the ordinary bucket limit.
   The final partial bucket is also submitted.
