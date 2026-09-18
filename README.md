@@ -119,4 +119,14 @@ a blocking external file source would need an appropriate I/O adapter.
 Worker failures are logged immediately; other jobs continue, and shutdown reports
 failure with a nonzero exit code. Source failures stop the application producers.
 
-The optional tournament bonus is not implemented.
+## Optional tournament bonus
+
+`tournament.py` implements a fixed-round social tournament with full tables,
+balanced resting when necessary, points-based standings and an explicit tie-break.
+Small instances use exhaustive optimization; larger ones use a bounded heuristic
+and report whether optimality was proved. See [BONUS.md](BONUS.md) for assumptions,
+the exact objective, limitations and examples.
+
+```sh
+python tournament.py --players 8 --tables 4 --group-size 2 --rounds 3 --simulate
+```
