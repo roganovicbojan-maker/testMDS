@@ -115,7 +115,7 @@ class FirstFitDecreasingBucketing:
                     sizes[index] += file.size_bytes
                     break
             else:
-                # Oversized files cannot fit any bucket and stay alone.
+                # No existing bucket fits: open a new one. Oversized files stay alone.
                 buckets.append([file])
                 sizes.append(file.size_bytes)
         return buckets
