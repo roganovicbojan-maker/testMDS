@@ -37,6 +37,7 @@ Useful options:
 | `--rate 10` | Average message arrivals per minute |
 | `--window 300` | Message window in seconds |
 | `--count 60` | Finite run; omit for continuous operation |
+| `--bucketing ffd` | Choose next-fit (default) or First Fit Decreasing |
 | `--seed 42` | Reproducible sources: file seed 42, message seed 43 |
 | `--message-delay 3` | Simulated message processing seconds; use 0 for no delay |
 | `--files-now` | Also collect files immediately on startup |
@@ -76,7 +77,7 @@ FileScheduler -> FileBatchService -> BucketingStrategy ----+
 ```
 
 - `file_pipeline.py`: file metadata, source/strategy contracts, exponential source,
-  Next Fit grouping and simulated file processor.
+  Next Fit / First Fit Decreasing grouping and simulated file processor.
 - `message_batching.py`: message models and deterministic window rules.
 - `message_source.py`: exponential inter-arrival delays for Poisson arrivals.
 - `message_service.py`: asynchronous reception/deadline coordination and simulated message processing.
@@ -89,7 +90,12 @@ FileScheduler -> FileBatchService -> BucketingStrategy ----+
 
 Dependencies are supplied through constructors or callbacks. A replacement
 bucketing algorithm only needs to implement the `BucketingStrategy.pack` contract;
-the collection service and dispatcher do not need to change. Protocols describe
+the collection service and dispatcher do not need to change. Both Next Fit and
+First Fit Decreasing are implemented and selectable through `--bucketing`.
+Next Fit scans the input once. FFD sorts a copy by decreasing size and searches
+existing buckets for the first fit; this simple implementation has O(n^2) worst-case
+packing time. For [6, 6, 4, 4] MB, Next Fit uses three buckets and FFD uses two.
+Neither is claimed to be an optimal solver. Both use the same oversized-file policy. Protocols describe
 interfaces for static checking; tests verify behavior.
 
 ## Assumptions and edge cases
