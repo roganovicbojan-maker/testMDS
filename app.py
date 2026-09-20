@@ -93,7 +93,7 @@ async def run(
             try:
                 await FileScheduler(schedule).run(collect_files, stop, run_immediately=files_now)
             finally:
-                # A failed file source must also stop the continuous message source.
+                # Policy: a failed file source stops the other producer too.
                 stop.set()
 
         cancellation_requested = False
@@ -117,7 +117,8 @@ async def run(
         ))
         producer_errors = [result for result in producer_results if isinstance(result, BaseException)]
         for error in producer_errors:
-            logging.error("Producer failed: %s", error)
+            logging.error("Producer failed: %s", error,
+                          exc_info=(type(error), error, error.__traceback__))
         # All producers have stopped; inspect all accepted worker results.
         try:
             await finish_step(dispatcher.drain())
@@ -128,7 +129,7 @@ async def run(
         if cancellation_requested:
             raise asyncio.CancelledError
         if producer_errors:
-            raise RuntimeError("A data source failed")
+            raise RuntimeError("A data source failed") from producer_errors[0]
     logging.info("APP finished successfully")
 
 

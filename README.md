@@ -137,6 +137,10 @@ between file and message jobs. Source collection is a short in-memory operation;
 a blocking external file source would need an appropriate I/O adapter.
 Worker failures are logged immediately; other jobs continue, and shutdown reports
 failure with a nonzero exit code. Source failures stop the application producers.
+Each source error is logged with its traceback; when workers finish successfully,
+the final application error preserves the first source error as its cause.
+The dispatcher completed count includes both successful and failed finished jobs;
+the failures count reports the unsuccessful subset.
 
 ## Optional tournament bonus
 
