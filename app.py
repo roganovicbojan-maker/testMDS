@@ -10,7 +10,7 @@ from functools import partial
 from contextlib import suppress
 from concurrent.futures import ThreadPoolExecutor
 
-from file_pipeline import ExponentialFileSource, FileBatchService, NextFitBucketing, SimulatedFileProcessor
+from file_pipeline import ExponentialFileSource, FileBatchService, NextFitBucketing, FirstFitDecreasingBucketing, SimulatedFileProcessor
 from message_batching import TimeBatcher
 from message_service import MessageBatchService, process_batch
 from message_source import PoissonMessageSource
@@ -33,13 +33,20 @@ async def run(
     nightly_hour: int = 2, nightly_minute: int = 0,
     stop: asyncio.Event | None = None,
     seed: int = 42, message_delay: float = 3,
+    bucketing: str = "next-fit",
 ) -> None:
     if not math.isfinite(message_delay) or message_delay < 0:
         raise ValueError("Message processing delay must be nonnegative and finite")
     stop = stop if stop is not None else asyncio.Event()
     schedule = FileSchedule(nightly_hour, nightly_minute, file_interval)
+    if bucketing == "next-fit":
+        strategy = NextFitBucketing()
+    elif bucketing == "ffd":
+        strategy = FirstFitDecreasingBucketing()
+    else:
+        raise ValueError("Unknown bucketing strategy: " + bucketing)
     file_service = FileBatchService(
-        ExponentialFileSource(rng=random.Random(seed)), NextFitBucketing()
+        ExponentialFileSource(rng=random.Random(seed)), strategy
     )
     file_processor = SimulatedFileProcessor(delay_seconds=1)
     message_source = PoissonMessageSource(
@@ -140,7 +147,7 @@ async def run_cli(args) -> None:
         await run(
             args.rate, args.window, args.count, args.files_now, args.file_interval,
             args.nightly_hour, args.nightly_minute, stop=stop,
-            seed=args.seed, message_delay=args.message_delay,
+            seed=args.seed, message_delay=args.message_delay, bucketing=args.bucketing,
         )
     finally:
         for signum, handler in previous.items():
@@ -158,6 +165,7 @@ if __name__ == "__main__":
     parser.add_argument("--nightly-minute", type=int, default=0, help="Daily collection minute (default: 0)")
     parser.add_argument("--seed", type=int, default=42, help="Reproducible seed: files use seed, messages use seed + 1")
     parser.add_argument("--message-delay", type=float, default=3, help="Simulated message processing seconds (default: 3; 0 disables delay)")
+    parser.add_argument("--bucketing", choices=("next-fit", "ffd"), default="next-fit", help="File grouping strategy (default: next-fit)")
     args = parser.parse_args()
     logging.basicConfig(
         level=logging.INFO,

@@ -96,6 +96,31 @@ class NextFitBucketing:
         return buckets
 
 
+class FirstFitDecreasingBucketing:
+    """Sort largest first, then use the first existing bucket with enough space."""
+
+    def __init__(self, max_size_bytes: int = 10 * BYTES_PER_MB) -> None:
+        if max_size_bytes <= 0:
+            raise ValueError("Bucket size limit must be positive")
+        self.max_size_bytes = max_size_bytes
+
+    def pack(self, files: list[FileItem]) -> list[list[FileItem]]:
+        buckets: list[list[FileItem]] = []
+        sizes: list[int] = []
+        # sorted returns a new list; the caller's input order is preserved.
+        for file in sorted(files, key=lambda item: item.size_bytes, reverse=True):
+            for index, size in enumerate(sizes):
+                if size + file.size_bytes <= self.max_size_bytes:
+                    buckets[index].append(file)
+                    sizes[index] += file.size_bytes
+                    break
+            else:
+                # Oversized files cannot fit any bucket and stay alone.
+                buckets.append([file])
+                sizes.append(file.size_bytes)
+        return buckets
+
+
 class FileBatchService:
     """Collect and group one delivery of files using supplied dependencies."""
 
